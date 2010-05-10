@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+<project name="drupalProject" 
+  description="Automates common tasks for a Drupal developer"
+  basedir="." 
+  default="lint"
+>
+
+  <!-- temporary -->
+  <property name="phing.directory" value="/Users/crdant/Source/Acquia/turner/acquia/operations/trunk/phing"/>
+
+  <!-- Read properties file. Override where necessary. -->
+  <property file="${phing.directory}/site.properties" override="true"/>
+  <property file="${phing.directory}/local.properties" override="true"/>  
+      
+  <!-- add tasks -->
+  <includepath classpath="${phing.task.path}" />
+
+  <!-- TODO: take this from outside if provided --> 
+  <property name="build.destination.directory" value="/Users/crdant/Dropbox/Outbox"/>
+  <property name="wget.cmd" value="${wget.bin}"/>
+  <property name="drush.flags" value="-v -u 1 -y"/>
+  <property name="drush.cmd" value="${drush.bin} ${drush.flags}"/>
+
+  <!-- packaging variables -->
+  <property name="drupal.release" value="${site.name}-${drupal.core.version}"/>
+
+  <!-- set the mysql URL based on provided properties -->
+  <if>
+   <isset property="{database.socket}"/>
+   <then>
+     <property name="mysql.pdo_url" value="${database.type}:unix_socket=${database.socket}"/>
+   </then>
+   <else>
+     <property name="mysql.pdo_url" value="${database.type}:host=${database.host};port=${database.port}"/>
+   </else>
+  </if>
+  
+  <property name="mysql.db_url" value="${database.type}i://${database.user}:${database.password}@${database.host}:${database.port}/${database.name}"/>
+  <property name="mysql.user" value="${database.user}"/>
+  <property name="mysql.password" value="${database.password}"/>
+  <property name="mysql.host" value="${database.host}"/>
+  <property name="mysql.port" value="${database.port}"/>
+  <property name="mysql.db" value="${database.name}"/>
+  <property name="mysql.dump.url" value="file:///Users/crdant/Archive/Acquia/Source/acquia/turner/operations/puppet/phing/files/setupDrupal.sql"/>
+  
+  <!-- property name="mysql.dump.url" value="{mysql.dump.base}/${site.group}/${site.name}"/ -->
+
+  <!-- Files to be treated as source code -->
+  <fileset id="sourcecode" dir="${project.basedir}">
+   <include name="**/*.php" />
+   <include name="**/*.inc" />
+   <include name="**/*.module" />
+  </fileset>
+  
+  <target name="lint" description="Check syntax of source.">
+    <phplint>
+      <fileset refid="sourcecode" />
+    </phplint>
+  </target>
+  
+  <target name="test" description="Run all simpletests locally">
+    <mkdir dir="${project.basedir}/test-reports"/>
+    <exec command="${drush.cmd} test xml test-reports --extra='--all'" logoutput="true"/>
+  </target>
+  
+  <target name="pull" description="Pull the data and files from the production site back into the development environment">
+    <exec command="${wget.cmd} ${mysql.dump.url}"/> 
+    <!--
+       * switch to this to support windows better
+       <unzip file="${site.name}.zip" todir="dest"/>
+       <exec command="${drush.cmd} sql-cli < ${site.name}.sql" logoutput="true"/>
+    -->
+    <exec command="gzcat ${site.name}.sql.gz | ${drush.cmd} sql-cli" logoutput="true"/>
+    <pdo url="${mysql.pdo_url}" userid="${mysql.user}" password="${mysql.password}">
+      <fileset dir="${project.basedir}/db/scrub">
+        <include name="**/*.sql"/>
+      </fileset>
+    </pdo>
+  </target>
+  
+  <target name="clear-cache" description="Clear the Drupal cache">
+    <exec command="${drush.cmd} cc" logoutput="true"/>
+  </target>
+  
+  <target name="help" description="Clear the Drupal cache">
+    <exec command="${drush.cmd} cc" logoutput="true"/>
+  </target>
+  
+</project>
